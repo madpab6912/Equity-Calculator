@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Equity Scenario Analyzer</title>
+    <style>
+        .page { display: none; padding: 20px; }
+        .active-page { display: block; }
+        .input-group { margin: 10px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        button { margin: 10px 0; padding: 10px 20px; }
+    </style>
+</head>
+<body>
+    <!-- Input Page -->
+    <div id="inputPage" class="page active-page">
+        <h2>Valuation Inputs</h2>
+        
+        <div class="input-group">
+            <label>Total Outstanding Shares:</label>
+            <input type="number" id="totalShares" value="1000000">
+        </div>
+
+        <div class="input-group">
+            <label>Current Asset Value ($):</label>
+            <input type="number" id="assetValue" value="50000000">
+        </div>
+
+        <div class="input-group">
+            <label>Total Liabilities ($):</label>
+            <input type="number" id="liabilities" value="20000000">
+        </div>
+
+        <h3>Transaction Parameters</h3>
+        <div class="input-group">
+            <label>Primary Investment ($):</label>
+            <input type="number" id="primaryInvestment" value="10000000">
+        </div>
+
+        <div class="input-group">
+            <label>Secondary Transaction ($):</label>
+            <input type="number" id="secondaryTransaction" value="5000000">
+        </div>
+
+        <button onclick="calculateScenarios()">Run Scenarios</button>
+    </div>
+
+    <!-- Results Page -->
+    <div id="resultPage" class="page">
+        <h2>Scenario Analysis Results</h2>
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Scenario</th>
+                    <th>Pre-Money Val ($)</th>
+                    <th>Primary ($)</th>
+                    <th>Secondary ($)</th>
+                    <th>Share Price</th>
+                    <th>Post-Money Val</th>
+                    <th>Equity Value/Share</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+        </table>
+        <button onclick="showPage('inputPage')">Back to Inputs</button>
+    </div>
+
+    <script>
+        // Page navigation
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+            document.getElementById(pageId).classList.add('active-page');
+        }
+
+        // Black-Scholes calculation
+        function blackScholes(V, K, T, r, σ) {
+            const d1 = (Math.log(V/K) + (r + σ**2/2)*T) / (σ * Math.sqrt(T));
+            const d2 = d1 - σ * Math.sqrt(T);
+            return V * normCDF(d1) - K * Math.exp(-r*T) * normCDF(d2);
+        }
+
+        // Normal distribution CDF
+        function normCDF(x) {
+            return (1 - math.erf(-x / Math.sqrt(2)))/2;
+        }
+
+        // Scenario generator
+        function calculateScenarios() {
+            const baseValues = {
+                shares: parseInt(document.getElementById('totalShares').value),
+                V: parseInt(document.getElementById('assetValue').value),
+                K: parseInt(document.getElementById('liabilities').value),
+                primary: parseInt(document.getElementById('primaryInvestment').value),
+                secondary: parseInt(document.getElementById('secondaryTransaction').value)
+            };
+
+            const scenarios = [
+                { name: "Base Case", premoney: 1.0, primary: 1.0, secondary: 1.0 },
+                { name: "20% Upside", premoney: 1.2, primary: 1.0, secondary: 1.0 },
+                { name: "20% Downside", premoney: 0.8, primary: 1.0, secondary: 1.0 },
+                { name: "Large Primary", premoney: 1.0, primary: 1.5, secondary: 1.0 },
+                { name: "Large Secondary", premoney: 1.0, primary: 1.0, secondary: 1.5 }
+            ];
+
+            const results = scenarios.map(scenario => {
+                const premoneyVal = baseValues.V * scenario.premoney;
+                const primaryInvestment = baseValues.primary * scenario.primary;
+                const secondaryTransaction = baseValues.secondary * scenario.secondary;
+                
+                // Share price calculation
+                const sharePrice = premoneyVal / baseValues.shares;
+                
+                // Post-money valuation
+                const postMoney = premoneyVal + primaryInvestment + secondaryTransaction;
+                
+                // Equity value using Black-Scholes
+                const equityValue = blackScholes(
+                    postMoney,
+                    baseValues.K,
+                    5, // Time horizon (years)
+                    0.05, // Risk-free rate
+                    0.35 // Volatility
+                );
+
+                return {
+                    ...scenario,
+                    premoneyVal,
+                    primaryInvestment,
+                    secondaryTransaction,
+                    sharePrice,
+                    postMoney,
+                    equityPerShare: equityValue / (baseValues.shares + 
+                        (primaryInvestment / sharePrice) + 
+                        (secondaryTransaction / sharePrice))
+                };
+            });
+
+            displayResults(results);
+        }
+
+        function displayResults(results) {
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = results.map(res => `
+                <tr>
+                    <td>${res.name}</td>
+                    <td>$${res.premoneyVal.toLocaleString()}</td>
+                    <td>$${res.primaryInvestment.toLocaleString()}</td>
+                    <td>$${res.secondaryTransaction.toLocaleString()}</td>
+                    <td>$${res.sharePrice.toFixed(2)}</td>
+                    <td>$${res.postMoney.toLocaleString()}</td>
+                    <td>$${res.equityPerShare.toFixed(2)}</td>
+                </tr>
+            `).join('');
+            showPage('resultPage');
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/9.4.4/math.js"></script>
+</body>
+</html>
